@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon Wishlist to Cart</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛒 Wishlist to Cart</h1>
+            <p class="subtitle">Add all wishlist items to your cart</p>
+        </div>
+
+        <div id="status-container" class="status-container">
+            <div id="not-wishlist" class="message warning hidden">
+                <p>⚠️ Please navigate to an Amazon wishlist page</p>
+            </div>
+
+            <div id="ready" class="message info hidden">
+                <p>✅ Found <span id="item-count">0</span> items in your wishlist</p>
+            </div>
+
+            <div id="processing" class="message processing hidden">
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                    <p class="progress-text">
+                        Adding item <span id="current-item">0</span> of <span id="total-items">0</span>
+                    </p>
+                </div>
+            </div>
+
+            <div id="complete" class="message success hidden">
+                <p>✅ Successfully added <span id="processed-count">0</span> items to cart!</p>
+                <p id="failed-message" class="failed-text hidden">
+                    ⚠️ <span id="failed-count">0</span> items could not be added
+                </p>
+            </div>
+
+            <div id="no-items" class="message warning hidden">
+                <p>ℹ️ No items found in this wishlist</p>
+            </div>
+            <div id="refresh-container" class="message info hidden">
+                <p>🔄 Click to refresh item count</p>
+            </div>
+        </div>
+
+        <div class="button-container">
+            <button id="start-button" class="btn btn-primary" disabled>
+                Add All to Cart
+            </button>
+            <button id="refresh-button" class="btn btn-secondary">
+                🔄 Refresh Count
+            </button>
+        </div>
+
+        <div id="control-buttons" class="button-container hidden">
+            <button id="pause-button" class="btn btn-warning">
+                ⏸️ Pause
+            </button>
+            <button id="resume-button" class="btn btn-success hidden">
+                ▶️ Resume
+            </button>
+            <button id="stop-button" class="btn btn-danger">
+                ⏹️ Stop
+            </button>
+        </div>
+
+        <div class="footer">
+            <p class="info-text">
+                ⏱️ Items will be added with 1-2 second delays to avoid rate limiting
+            </p>
+            <p class="credits">
+                Developed with ❤️ by <a href="https://mohdfaiz.netlify.app" target="_blank" class="credit-link">Mohammad
+                    Faiz Khan</a>
+            </p>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>
