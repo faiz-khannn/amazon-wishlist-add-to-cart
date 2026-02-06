@@ -5,7 +5,8 @@
   "description": "Add all items from your Amazon wishlist to cart with one click",
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage"
   ],
   "host_permissions": [
     "https://www.amazon.in/*",
@@ -30,7 +31,9 @@
         "https://www.amazon.in/hz/wishlist/*",
         "https://www.amazon.com/hz/wishlist/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ]

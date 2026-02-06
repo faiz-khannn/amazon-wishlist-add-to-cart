@@ -21,6 +21,60 @@
   let failedItems = [];
   let currentButtonIndex = 0;
   let buttonQueue = [];
+  let processedItemIds = new Set(); // Track which items were already added
+
+  // Storage keys
+  const STORAGE_KEY = 'wishlist_automation_state';
+
+  /**
+   * Save state to storage
+   */
+  async function saveState() {
+    const state = {
+      isProcessing,
+      isPaused,
+      processedCount,
+      totalItems,
+      currentButtonIndex,
+      processedItemIds: Array.from(processedItemIds),
+      failedItems,
+      timestamp: Date.now()
+    };
+    await chrome.storage.local.set({ [STORAGE_KEY]: state });
+  }
+
+  /**
+   * Load state from storage
+   */
+  async function loadState() {
+    const result = await chrome.storage.local.get(STORAGE_KEY);
+    const state = result[STORAGE_KEY];
+
+    if (state && state.isProcessing) {
+      // Check if state is recent (within 5 minutes)
+      const fiveMinutes = 5 * 60 * 1000;
+      if (Date.now() - state.timestamp < fiveMinutes) {
+        isProcessing = state.isProcessing;
+        isPaused = state.isPaused;
+        processedCount = state.processedCount;
+        totalItems = state.totalItems;
+        currentButtonIndex = state.currentButtonIndex;
+        processedItemIds = new Set(state.processedItemIds || []);
+        failedItems = state.failedItems || [];
+
+        console.log(`Restored state: ${processedCount}/${totalItems} items processed`);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Clear state from storage
+   */
+  async function clearState() {
+    await chrome.storage.local.remove(STORAGE_KEY);
+  }
 
   /**
    * Get random delay between min and max
@@ -54,65 +108,88 @@
   /**
    * Click a button and wait for the specified delay
    */
-  function clickButton(buttonData) {
-    return new Promise((resolve) => {
-      try {
-        console.log(`Clicking Add to Cart for item ${buttonData.index}/${totalItems} (ID: ${buttonData.itemId})`);
-        buttonData.button.click();
-        processedCount++;
-
-        // Send progress update to popup
-        chrome.runtime.sendMessage({
-          type: 'PROGRESS_UPDATE',
-          processed: processedCount,
-          total: totalItems,
-          currentItem: buttonData.index,
-          isPaused: isPaused
-        });
-
-        const delay = getRandomDelay();
-        setTimeout(resolve, delay);
-      } catch (error) {
-        console.error(`Error clicking button for item ${buttonData.itemId}:`, error);
-        failedItems.push(buttonData.itemId);
-        resolve();
+  async function clickButton(buttonData) {
+    try {
+      // Skip if already processed
+      if (processedItemIds.has(buttonData.itemId)) {
+        console.log(`Skipping already processed item ${buttonData.itemId}`);
+        return;
       }
-    });
+
+      console.log(`Clicking Add to Cart for item ${buttonData.index}/${totalItems} (ID: ${buttonData.itemId})`);
+      buttonData.button.click();
+      processedCount++;
+      processedItemIds.add(buttonData.itemId);
+
+      // Save state after each item
+      await saveState();
+
+      // Send progress update to popup
+      chrome.runtime.sendMessage({
+        type: 'PROGRESS_UPDATE',
+        processed: processedCount,
+        total: totalItems,
+        currentItem: buttonData.index,
+        isPaused: isPaused
+      });
+
+      const delay = getRandomDelay();
+      await new Promise(resolve => setTimeout(resolve, delay));
+    } catch (error) {
+      console.error(`Error clicking button for item ${buttonData.itemId}:`, error);
+      failedItems.push(buttonData.itemId);
+      await saveState();
+    }
   }
 
   /**
    * Process all Add to Cart buttons sequentially
    */
-  async function processAllItems() {
-    if (isProcessing) {
+  async function processAllItems(resume = false) {
+    if (isProcessing && !resume) {
       console.log('Already processing items...');
       return;
     }
 
-    isProcessing = true;
-    isPaused = false;
-    isStopped = false;
-    processedCount = 0;
-    failedItems = [];
-    currentButtonIndex = 0;
+    if (!resume) {
+      // Starting fresh
+      isProcessing = true;
+      isPaused = false;
+      isStopped = false;
+      processedCount = 0;
+      failedItems = [];
+      currentButtonIndex = 0;
+      processedItemIds.clear();
+    } else {
+      // Resuming after page refresh
+      console.log('Resuming from saved state...');
+      isProcessing = true;
+      isStopped = false;
+    }
 
     const buttons = findAddToCartButtons();
     buttonQueue = buttons;
-    totalItems = buttons.length;
+
+    if (!resume) {
+      totalItems = buttons.length;
+    }
 
     if (totalItems === 0) {
       chrome.runtime.sendMessage({
         type: 'NO_ITEMS_FOUND'
       });
       isProcessing = false;
+      await clearState();
       return;
     }
 
     console.log(`Found ${totalItems} items to add to cart`);
+    await saveState();
 
     chrome.runtime.sendMessage({
       type: 'PROCESS_STARTED',
-      total: totalItems
+      total: totalItems,
+      processed: processedCount
     });
 
     // Process each button sequentially with pause/stop support
@@ -159,6 +236,7 @@
     });
 
     isProcessing = false;
+    await clearState();
     console.log(`Process complete! Added ${processedCount} items to cart.`);
     if (failedItems.length > 0) {
       console.log(`Failed items: ${failedItems.join(', ')}`);
@@ -182,9 +260,10 @@
   /**
    * Pause the process
    */
-  function pauseProcess() {
+  async function pauseProcess() {
     if (isProcessing && !isPaused) {
       isPaused = true;
+      await saveState();
       console.log('Process paused');
       chrome.runtime.sendMessage({
         type: 'PROCESS_PAUSED',
@@ -197,9 +276,10 @@
   /**
    * Resume the process
    */
-  function resumeProcess() {
+  async function resumeProcess() {
     if (isProcessing && isPaused) {
       isPaused = false;
+      await saveState();
       console.log('Process resumed');
       chrome.runtime.sendMessage({
         type: 'PROCESS_RESUMED',
@@ -212,10 +292,11 @@
   /**
    * Stop the process
    */
-  function stopProcess() {
+  async function stopProcess() {
     if (isProcessing) {
       isStopped = true;
       isPaused = false;
+      await clearState();
       console.log('Process stop requested');
     }
   }
@@ -240,7 +321,16 @@
     return true;
   });
 
-  // Initialize
+  // Initialize - check for saved state
   console.log('Amazon Wishlist to Cart extension loaded');
+
+  // Check if we need to resume after page refresh
+  loadState().then(hasState => {
+    if (hasState) {
+      console.log('Found saved state, resuming automation...');
+      // Resume processing
+      processAllItems(true);
+    }
+  });
 
 })();

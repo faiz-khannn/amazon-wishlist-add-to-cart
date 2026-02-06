@@ -197,8 +197,10 @@
             case 'PROCESS_STARTED':
                 isCurrentlyProcessing = true;
                 showMessage(elements.processing);
-                updateProgress(0, request.total);
+                updateProgress(request.processed || 0, request.total);
                 elements.controlButtons.classList.remove('hidden');
+                elements.pauseButton.classList.remove('hidden');
+                elements.resumeButton.classList.add('hidden');
                 break;
 
             case 'PROGRESS_UPDATE':
@@ -208,10 +210,14 @@
                 break;
 
             case 'PROCESS_PAUSED':
+                elements.pauseButton.classList.add('hidden');
+                elements.resumeButton.classList.remove('hidden');
                 console.log('Process paused');
                 break;
 
             case 'PROCESS_RESUMED':
+                elements.pauseButton.classList.remove('hidden');
+                elements.resumeButton.classList.add('hidden');
                 console.log('Process resumed');
                 break;
 
