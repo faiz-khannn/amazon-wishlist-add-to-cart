@@ -159,4 +159,4 @@ If you encounter issues or have suggestions:
 
 ---
 
-**Made with ❤️ for Amazon shoppers who hate clicking the same button 100 times!**
+**Made with ❤️ by Mohammad Faiz Khan for Amazon shoppers who hate clicking the same button 100 times!**
