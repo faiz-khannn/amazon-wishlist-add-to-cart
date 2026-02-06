@@ -18,7 +18,11 @@
         processedCount: document.getElementById('processed-count'),
         failedCount: document.getElementById('failed-count'),
         failedMessage: document.getElementById('failed-message'),
-        progressFill: document.getElementById('progress-fill')
+        progressFill: document.getElementById('progress-fill'),
+        controlButtons: document.getElementById('control-buttons'),
+        pauseButton: document.getElementById('pause-button'),
+        resumeButton: document.getElementById('resume-button'),
+        stopButton: document.getElementById('stop-button')
     };
 
     /**
@@ -125,6 +129,9 @@
     async function startProcess() {
         try {
             elements.startButton.disabled = true;
+            elements.controlButtons.classList.remove('hidden');
+            elements.pauseButton.classList.remove('hidden');
+            elements.resumeButton.classList.add('hidden');
             showMessage(elements.processing);
             updateProgress(0, 0);
 
@@ -134,6 +141,48 @@
             console.error('Error starting process:', error);
             showMessage(elements.ready);
             elements.startButton.disabled = false;
+            elements.controlButtons.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Pause the process
+     */
+    async function pauseProcess() {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            chrome.tabs.sendMessage(tab.id, { action: 'PAUSE_PROCESS' });
+            elements.pauseButton.classList.add('hidden');
+            elements.resumeButton.classList.remove('hidden');
+        } catch (error) {
+            console.error('Error pausing process:', error);
+        }
+    }
+
+    /**
+     * Resume the process
+     */
+    async function resumeProcess() {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            chrome.tabs.sendMessage(tab.id, { action: 'RESUME_PROCESS' });
+            elements.pauseButton.classList.remove('hidden');
+            elements.resumeButton.classList.add('hidden');
+        } catch (error) {
+            console.error('Error resuming process:', error);
+        }
+    }
+
+    /**
+     * Stop the process
+     */
+    async function stopProcess() {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            chrome.tabs.sendMessage(tab.id, { action: 'STOP_PROCESS' });
+            elements.controlButtons.classList.add('hidden');
+        } catch (error) {
+            console.error('Error stopping process:', error);
         }
     }
 
@@ -145,10 +194,26 @@
             case 'PROCESS_STARTED':
                 showMessage(elements.processing);
                 updateProgress(0, request.total);
+                elements.controlButtons.classList.remove('hidden');
                 break;
 
             case 'PROGRESS_UPDATE':
                 updateProgress(request.processed, request.total);
+                break;
+
+            case 'PROCESS_PAUSED':
+                console.log('Process paused');
+                break;
+
+            case 'PROCESS_RESUMED':
+                console.log('Process resumed');
+                break;
+
+            case 'PROCESS_STOPPED':
+                elements.processedCount.textContent = request.processed;
+                showMessage(elements.complete);
+                elements.startButton.disabled = false;
+                elements.controlButtons.classList.add('hidden');
                 break;
 
             case 'PROCESS_COMPLETE':
@@ -159,6 +224,7 @@
                 }
                 showMessage(elements.complete);
                 elements.startButton.disabled = false;
+                elements.controlButtons.classList.add('hidden');
                 break;
 
             case 'NO_ITEMS_FOUND':
@@ -175,6 +241,9 @@
 
     // Event listeners
     elements.startButton.addEventListener('click', startProcess);
+    elements.pauseButton.addEventListener('click', pauseProcess);
+    elements.resumeButton.addEventListener('click', resumeProcess);
+    elements.stopButton.addEventListener('click', stopProcess);
 
     // Add refresh button listener
     const refreshButton = document.getElementById('refresh-button');
