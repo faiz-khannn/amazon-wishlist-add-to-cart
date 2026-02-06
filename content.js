@@ -240,11 +240,7 @@
     return true;
   });
 
-  // Initialize - send ready message
+  // Initialize
   console.log('Amazon Wishlist to Cart extension loaded');
-  chrome.runtime.sendMessage({
-    type: 'CONTENT_SCRIPT_READY',
-    itemCount: findAddToCartButtons().length
-  });
 
 })();

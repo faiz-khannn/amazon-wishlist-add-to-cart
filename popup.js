@@ -54,6 +54,9 @@
         elements.totalItems.textContent = total;
     }
 
+    // Track if currently processing to prevent message conflicts
+    let isCurrentlyProcessing = false;
+
     /**
    * Inject content script if not already loaded
    */
@@ -192,13 +195,16 @@
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         switch (request.type) {
             case 'PROCESS_STARTED':
+                isCurrentlyProcessing = true;
                 showMessage(elements.processing);
                 updateProgress(0, request.total);
                 elements.controlButtons.classList.remove('hidden');
                 break;
 
             case 'PROGRESS_UPDATE':
-                updateProgress(request.processed, request.total);
+                if (isCurrentlyProcessing) {
+                    updateProgress(request.processed, request.total);
+                }
                 break;
 
             case 'PROCESS_PAUSED':
@@ -210,6 +216,7 @@
                 break;
 
             case 'PROCESS_STOPPED':
+                isCurrentlyProcessing = false;
                 elements.processedCount.textContent = request.processed;
                 showMessage(elements.complete);
                 elements.startButton.disabled = false;
@@ -217,6 +224,7 @@
                 break;
 
             case 'PROCESS_COMPLETE':
+                isCurrentlyProcessing = false;
                 elements.processedCount.textContent = request.processed;
                 if (request.failed > 0) {
                     elements.failedCount.textContent = request.failed;
@@ -228,13 +236,9 @@
                 break;
 
             case 'NO_ITEMS_FOUND':
+                isCurrentlyProcessing = false;
                 showMessage(elements.noItems);
                 elements.startButton.disabled = true;
-                break;
-
-            case 'CONTENT_SCRIPT_READY':
-                // Content script is ready, refresh status
-                checkWishlistPage();
                 break;
         }
     });
