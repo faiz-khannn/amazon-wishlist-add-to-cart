@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wishlist Details – All Lists</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="detail.css">
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <!-- Header -->
+        <header class="hero-header">
+            <div class="header-content">
+                <h1>🛒 Wishlist Dashboard</h1>
+                <p class="header-subtitle">All your Amazon wishlists at a glance</p>
+                <button id="refresh-btn" class="btn-refresh-header">
+                    🔄 Refresh
+                </button>
+            </div>
+        </header>
+
+        <!-- Grand Total Banner -->
+        <section id="grand-total-section" class="grand-total-section hidden">
+            <div class="grand-total-card">
+                <div class="grand-total-inner">
+                    <div class="grand-total-label">Grand Total Across All Lists</div>
+                    <div class="grand-total-value" id="grand-total-value">₹0.00</div>
+                    <div class="grand-total-meta">
+                        <span id="total-lists-count">0</span> lists · <span id="total-items-count">0</span> items
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Loading State -->
+        <section id="loading-section" class="loading-section">
+            <div class="loader-container">
+                <div class="loader-spinner"></div>
+                <p class="loader-text">Loading your wishlists...</p>
+            </div>
+        </section>
+
+        <!-- Empty State -->
+        <section id="empty-section" class="empty-section hidden">
+            <div class="empty-card">
+                <div class="empty-icon">📋</div>
+                <h2>No Wishlists Found</h2>
+                <p>Visit your Amazon wishlist pages to start tracking them. The extension automatically saves each list
+                    you visit.</p>
+                <a href="https://www.amazon.in/hz/wishlist/ls" target="_blank" class="btn-go-to-wishlists">
+                    Go to Amazon Wishlists →
+                </a>
+            </div>
+        </section>
+
+        <!-- Lists Grid -->
+        <section id="lists-section" class="lists-section hidden">
+            <div class="lists-grid" id="lists-grid">
+                <!-- Cards inserted by JS -->
+            </div>
+        </section>
+
+        <!-- Actions -->
+        <section id="actions-section" class="actions-section hidden">
+            <button id="clear-all-btn" class="btn-clear-all">
+                🗑️ Clear All Saved Data
+            </button>
+        </section>
+
+        <!-- Footer -->
+        <footer class="page-footer">
+            <p>
+                Developed with ❤️ by
+                <a href="https://mohdfaiz.netlify.app" target="_blank">Mohammad Faiz Khan</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="detail.js"></script>
+</body>
+
+</html>

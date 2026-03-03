@@ -22,7 +22,11 @@
         controlButtons: document.getElementById('control-buttons'),
         pauseButton: document.getElementById('pause-button'),
         resumeButton: document.getElementById('resume-button'),
-        stopButton: document.getElementById('stop-button')
+        stopButton: document.getElementById('stop-button'),
+        priceInfo: document.getElementById('price-info'),
+        totalPrice: document.getElementById('total-price'),
+        listName: document.getElementById('list-name'),
+        detailButton: document.getElementById('detail-button')
     };
 
     /**
@@ -52,6 +56,14 @@
         elements.progressFill.style.width = `${percentage}%`;
         elements.currentItem.textContent = current;
         elements.totalItems.textContent = total;
+    }
+
+    /**
+     * Format price with currency
+     */
+    function formatPrice(price, currency) {
+        currency = currency || '₹';
+        return currency + price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     // Track if currently processing to prevent message conflicts
@@ -111,6 +123,19 @@
                     elements.itemCount.textContent = response.itemCount;
                     showMessage(elements.ready);
                     elements.startButton.disabled = false;
+
+                    // Show price info
+                    if (response.totalPrice > 0) {
+                        elements.totalPrice.textContent = formatPrice(response.totalPrice, response.currency);
+                        elements.priceInfo.classList.remove('hidden');
+                    } else {
+                        elements.priceInfo.classList.add('hidden');
+                    }
+
+                    // Show list name
+                    if (response.listName) {
+                        elements.listName.textContent = response.listName;
+                    }
                 } else if (response && response.itemCount === 0) {
                     showMessage(elements.noItems);
                     elements.startButton.disabled = true;
@@ -190,6 +215,13 @@
     }
 
     /**
+     * Open the detail page in a new tab
+     */
+    function openDetailPage() {
+        chrome.tabs.create({ url: chrome.runtime.getURL('detail.html') });
+    }
+
+    /**
      * Handle messages from content script
      */
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -246,6 +278,23 @@
                 showMessage(elements.noItems);
                 elements.startButton.disabled = true;
                 break;
+
+            case 'LIVE_UPDATE':
+                // Auto-refresh from content script (new items detected from scrolling)
+                if (!isCurrentlyProcessing) {
+                    elements.itemCount.textContent = request.itemCount;
+                    showMessage(elements.ready);
+                    elements.startButton.disabled = request.itemCount === 0;
+
+                    if (request.totalPrice > 0) {
+                        elements.totalPrice.textContent = formatPrice(request.totalPrice, request.currency);
+                        elements.priceInfo.classList.remove('hidden');
+                    }
+                    if (request.listName) {
+                        elements.listName.textContent = request.listName;
+                    }
+                }
+                break;
         }
     });
 
@@ -254,6 +303,7 @@
     elements.pauseButton.addEventListener('click', pauseProcess);
     elements.resumeButton.addEventListener('click', resumeProcess);
     elements.stopButton.addEventListener('click', stopProcess);
+    elements.detailButton.addEventListener('click', openDetailPage);
 
     // Add refresh button listener
     const refreshButton = document.getElementById('refresh-button');
@@ -265,5 +315,17 @@
 
     // Initialize on popup open
     checkWishlistPage();
+
+    // ── Periodic auto-refresh while popup is open (every 3 seconds) ──
+    const autoRefreshInterval = setInterval(() => {
+        if (!isCurrentlyProcessing) {
+            checkWishlistPage();
+        }
+    }, 3000);
+
+    // Clean up interval when popup closes
+    window.addEventListener('unload', () => {
+        clearInterval(autoRefreshInterval);
+    });
 
 })();

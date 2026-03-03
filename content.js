@@ -25,6 +25,7 @@
 
   // Storage keys
   const STORAGE_KEY = 'wishlist_automation_state';
+  const LISTS_STORAGE_KEY = 'wishlist_lists_data';
 
   /**
    * Save state to storage
@@ -81,6 +82,176 @@
    */
   function getRandomDelay() {
     return Math.floor(Math.random() * (CONFIG.MAX_DELAY - CONFIG.MIN_DELAY + 1)) + CONFIG.MIN_DELAY;
+  }
+
+  /**
+   * Extract the current wishlist name and ID from the page
+   */
+  function getWishlistInfo() {
+    // Get list name from the page title/heading
+    let listName = 'Unnamed List';
+    const titleEl = document.querySelector('#profile-list-name');
+    if (titleEl) {
+      listName = titleEl.textContent.trim();
+    } else {
+      const h1 = document.querySelector('h1.a-text-bold, span#listName');
+      if (h1) listName = h1.textContent.trim();
+    }
+
+    // Get list ID from URL
+    let listId = '';
+    const urlMatch = window.location.pathname.match(/\/hz\/wishlist\/ls\/([A-Z0-9]+)/i);
+    if (urlMatch) {
+      listId = urlMatch[1];
+    } else {
+      // Try from a data attribute
+      const addToCartEl = document.querySelector('span[data-action="add-to-cart"]');
+      if (addToCartEl) {
+        try {
+          const data = JSON.parse(addToCartEl.getAttribute('data-add-to-cart'));
+          listId = data.listID || '';
+        } catch (e) { /* ignore */ }
+      }
+    }
+
+    return { listName, listId };
+  }
+
+  /**
+   * Extract price from an item element.
+   * Tries multiple selectors for robustness.
+   */
+  function extractItemPrice(itemEl) {
+    // Method 1: data-add-to-cart JSON attribute (most reliable)
+    const addToCartSpan = itemEl.querySelector('span[data-action="add-to-cart"]');
+    if (addToCartSpan) {
+      try {
+        const data = JSON.parse(addToCartSpan.getAttribute('data-add-to-cart'));
+        if (data.price) {
+          return parseFloat(data.price);
+        }
+      } catch (e) { /* fallback to DOM scraping */ }
+    }
+
+    // Method 2: span.a-offscreen inside price section
+    const offscreen = itemEl.querySelector('.price-section span.a-offscreen');
+    if (offscreen) {
+      const text = offscreen.textContent.trim();
+      const num = text.replace(/[^\d.]/g, '');
+      if (num) return parseFloat(num);
+    }
+
+    // Method 3: span.a-price-whole
+    const whole = itemEl.querySelector('span.a-price-whole');
+    if (whole) {
+      // Get text content but exclude child elements' text
+      let wholeText = '';
+      for (const node of whole.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          wholeText += node.textContent;
+        }
+      }
+      wholeText = wholeText.replace(/[^\d]/g, '');
+
+      const fraction = itemEl.querySelector('span.a-price-fraction');
+      const fractionText = fraction ? fraction.textContent.trim() : '00';
+
+      if (wholeText) return parseFloat(wholeText + '.' + fractionText);
+    }
+
+    return 0;
+  }
+
+  /**
+   * Extract item name from an item element
+   */
+  function extractItemName(itemEl) {
+    const nameLink = itemEl.querySelector('a[id^="itemName_"]');
+    if (nameLink) {
+      return nameLink.getAttribute('title') || nameLink.textContent.trim();
+    }
+    const h2 = itemEl.querySelector('h2 a');
+    if (h2) {
+      return h2.getAttribute('title') || h2.textContent.trim();
+    }
+    return 'Unknown Item';
+  }
+
+  /**
+   * Get all items with their prices
+   */
+  function getItemsWithPrices() {
+    const items = document.querySelectorAll(CONFIG.ITEM_SELECTOR);
+    const result = [];
+
+    items.forEach((item) => {
+      const itemId = item.getAttribute('data-itemid');
+      const name = extractItemName(item);
+      const price = extractItemPrice(item);
+      const hasAddToCart = !!item.querySelector(CONFIG.ADD_TO_CART_SELECTOR);
+
+      result.push({
+        itemId,
+        name,
+        price,
+        hasAddToCart
+      });
+    });
+
+    return result;
+  }
+
+  /**
+   * Detect currency symbol from page
+   */
+  function detectCurrency() {
+    const symbolEl = document.querySelector('span.a-price-symbol');
+    if (symbolEl) return symbolEl.textContent.trim();
+
+    const offscreen = document.querySelector('.price-section span.a-offscreen');
+    if (offscreen) {
+      const text = offscreen.textContent.trim();
+      const match = text.match(/^([^\d\s]+)/);
+      if (match) return match[1];
+    }
+
+    // Default based on domain
+    if (window.location.hostname.includes('amazon.in')) return '₹';
+    if (window.location.hostname.includes('amazon.com')) return '$';
+    return '₹';
+  }
+
+  /**
+   * Save current wishlist data to storage for the multi-list detail page
+   */
+  async function saveListData() {
+    const { listName, listId } = getWishlistInfo();
+    if (!listId) return;
+
+    const items = getItemsWithPrices();
+    const totalPrice = items.reduce((sum, item) => sum + item.price, 0);
+    const currency = detectCurrency();
+
+    const listData = {
+      listId,
+      listName,
+      itemCount: items.length,
+      totalPrice,
+      currency,
+      items: items.map(i => ({ name: i.name, price: i.price })),
+      lastUpdated: Date.now(),
+      url: window.location.href
+    };
+
+    // Get existing lists data
+    const result = await chrome.storage.local.get(LISTS_STORAGE_KEY);
+    const allLists = result[LISTS_STORAGE_KEY] || {};
+
+    // Add/update this list
+    allLists[listId] = listData;
+
+    await chrome.storage.local.set({ [LISTS_STORAGE_KEY]: allLists });
+    console.log(`Saved list data for "${listName}": ${items.length} items, total ${currency}${totalPrice.toFixed(2)}`);
   }
 
   /**
@@ -244,16 +415,26 @@
   }
 
   /**
-   * Get current status
+   * Get current status including price info
    */
   function getStatus() {
-    const buttons = findAddToCartButtons();
+    const items = getItemsWithPrices();
+    const addableItems = items.filter(i => i.hasAddToCart);
+    const totalPrice = items.reduce((sum, item) => sum + item.price, 0);
+    const currency = detectCurrency();
+    const { listName, listId } = getWishlistInfo();
+
     return {
       isWishlistPage: true,
-      itemCount: buttons.length,
+      itemCount: addableItems.length,
+      allItemCount: items.length,
       isProcessing: isProcessing,
       processed: processedCount,
-      total: totalItems
+      total: totalItems,
+      totalPrice: totalPrice,
+      currency: currency,
+      listName: listName,
+      listId: listId
     };
   }
 
@@ -317,12 +498,73 @@
       sendResponse({ success: true });
     } else if (request.action === 'GET_STATUS') {
       sendResponse(getStatus());
+    } else if (request.action === 'SAVE_LIST_DATA') {
+      saveListData().then(() => sendResponse({ success: true }));
+      return true; // Keep channel open for async
     }
     return true;
   });
 
+  // ── Auto-refresh: watch for new items loaded via infinite scroll ──
+  let lastKnownItemCount = 0;
+  let refreshDebounceTimer = null;
+
+  function onItemsChanged() {
+    const currentCount = document.querySelectorAll(CONFIG.ITEM_SELECTOR).length;
+    if (currentCount !== lastKnownItemCount) {
+      lastKnownItemCount = currentCount;
+      console.log(`Item count changed to ${currentCount}, auto-saving...`);
+
+      // Debounce: wait 500ms of no changes before saving
+      clearTimeout(refreshDebounceTimer);
+      refreshDebounceTimer = setTimeout(async () => {
+        await saveListData();
+
+        // Notify popup with fresh status
+        try {
+          chrome.runtime.sendMessage({
+            type: 'LIVE_UPDATE',
+            ...getStatus()
+          });
+        } catch (e) { /* popup may not be open */ }
+      }, 500);
+    }
+  }
+
+  // MutationObserver on the wishlist container
+  function startObserver() {
+    // The wishlist items live inside a ul or the endOfListMarker parent
+    const container = document.querySelector('#g-items, [id^="g-items"]')
+      || document.querySelector('ul.a-unordered-list')
+      || document.body;
+
+    const observer = new MutationObserver(() => {
+      onItemsChanged();
+    });
+
+    observer.observe(container, { childList: true, subtree: true });
+    console.log('MutationObserver started on', container.tagName || 'body');
+  }
+
+  // Also listen for scroll to catch edge cases
+  let scrollDebounceTimer = null;
+  window.addEventListener('scroll', () => {
+    clearTimeout(scrollDebounceTimer);
+    scrollDebounceTimer = setTimeout(() => {
+      onItemsChanged();
+    }, 800);
+  }, { passive: true });
+
   // Initialize - check for saved state
   console.log('Amazon Wishlist to Cart extension loaded');
+
+  // Auto-save list data whenever a wishlist page loads
+  saveListData().then(() => {
+    lastKnownItemCount = document.querySelectorAll(CONFIG.ITEM_SELECTOR).length;
+  });
+
+  // Start observing for new items
+  startObserver();
 
   // Check if we need to resume after page refresh
   loadState().then(hasState => {

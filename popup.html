@@ -22,6 +22,10 @@
 
             <div id="ready" class="message info hidden">
                 <p>✅ Found <span id="item-count">0</span> items in your wishlist</p>
+                <div id="price-info" class="price-info hidden">
+                    <p class="price-total">💰 Total value: <span id="total-price">₹0</span></p>
+                    <p class="list-name-display">📋 <span id="list-name"></span></p>
+                </div>
             </div>
 
             <div id="processing" class="message processing hidden">
@@ -68,6 +72,12 @@
             </button>
             <button id="stop-button" class="btn btn-danger">
                 ⏹️ Stop
+            </button>
+        </div>
+
+        <div class="detail-button-container">
+            <button id="detail-button" class="btn btn-detail">
+                📊 View All Lists
             </button>
         </div>
 
